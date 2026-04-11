@@ -74,13 +74,28 @@ def report_detection(payload: dict, snapshot_path: str | None = None) -> bool:
     POST a detection event to the backend.
     If a snapshot_path is provided, it is uploaded as multipart form.
     """
+    import json
+
     try:
         if snapshot_path:
+            # Convert values to proper strings for multipart form data
+            # Nested dicts must be JSON-serialized (not Python str())
+            form_data = {}
+            for k, v in payload.items():
+                if v is None:
+                    continue
+                if isinstance(v, dict):
+                    form_data[k] = json.dumps(v)
+                elif isinstance(v, bool):
+                    form_data[k] = str(v).lower()  # "true"/"false" not "True"/"False"
+                else:
+                    form_data[k] = str(v)
+
             with open(snapshot_path, "rb") as img_file:
                 with httpx.Client(base_url=BACKEND_URL, timeout=_TIMEOUT) as c:
                     r = c.post(
                         "/ai/report",
-                        data={k: str(v) for k, v in payload.items()},
+                        data=form_data,
                         files={"snapshot": ("snapshot.jpg", img_file, "image/jpeg")},
                         headers={"X-AI-Key": AI_API_KEY},
                     )
