@@ -32,6 +32,15 @@ def _get_yolo():
     global _yolo
     if _yolo is None:
         try:
+            # PyTorch 2.6+ defaults weights_only=True which breaks YOLO loading.
+            # Patch torch.load to force weights_only=False for model loading.
+            import torch
+            _original_load = torch.load
+            def _patched_load(*args, **kwargs):
+                kwargs.setdefault("weights_only", False)
+                return _original_load(*args, **kwargs)
+            torch.load = _patched_load
+
             from ultralytics import YOLO
             _yolo = YOLO(YOLO_MODEL)
             logger.info(f"YOLOv8 loaded: {YOLO_MODEL}")
