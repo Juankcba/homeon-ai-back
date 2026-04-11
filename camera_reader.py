@@ -57,11 +57,17 @@ class RTSPCamera:
     def _connect(self) -> bool:
         if self._cap:
             self._cap.release()
+        # Force TCP transport – UDP is unreliable inside Docker containers
+        import os
+        os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp|analyzeduration;5000000|probesize;5000000"
         self._cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG)
         self._cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        # Set a shorter open timeout (10s instead of default 30s)
+        self._cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 10000)
+        self._cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 10000)
         ok = self._cap.isOpened()
         if ok:
-            logger.info(f"[{self.name}] Connected to RTSP stream")
+            logger.info(f"[{self.name}] Connected to RTSP stream (TCP)")
             self._connect_attempts = 0
         else:
             self._connect_attempts += 1
