@@ -92,13 +92,13 @@ class RTSPCamera:
 def build_rtsp_url(camera: dict) -> str:
     """
     Build an RTSP URL from NestJS camera data.
-    Expected fields: rtspUrl (preferred) OR host/user/password.
+    Expected fields: rtspUrl (preferred) OR ip/rtspUsername/rtspPassword.
     """
     if camera.get("rtspUrl"):
         return camera["rtspUrl"]
 
-    user = camera.get("username", "admin")
-    password = camera.get("password", "")
-    host = camera.get("host", "")
+    user = camera.get("rtspUsername") or camera.get("username", "admin")
+    password = camera.get("rtspPassword") or camera.get("password", "")
+    host = camera.get("ip") or camera.get("host", "")
     port = camera.get("port", 554)
     return f"rtsp://{user}:{password}@{host}:{port}/stream1"
