@@ -64,6 +64,18 @@ class Detector:
         # ── 4. Save snapshot + report each detection ─────────────────────
         for det in all_detections:
             snapshot_path = self._save_snapshot(frame, camera_id, det)
+            metadata = {
+                "gateAccess": det.get("gate_access", False),
+                "vehicleClass": det.get("vehicle_class"),
+            }
+            # Add plate-specific metadata for vehicle detections
+            if det["type"] == "vehicle":
+                metadata.update({
+                    "plateRaw": det.get("plate_raw"),
+                    "plateFormat": det.get("plate_format"),
+                    "plateConfidence": det.get("plate_confidence", 0),
+                })
+
             payload = {
                 "type": det["type"],
                 "label": det["label"],
@@ -74,10 +86,7 @@ class Detector:
                 "matchedFaceId": det.get("face_id"),
                 "matchedVehicleId": det.get("vehicle_id"),
                 "boundingBox": det.get("bbox"),
-                "metadata": {
-                    "gateAccess": det.get("gate_access", False),
-                    "vehicleClass": det.get("vehicle_class"),
-                },
+                "metadata": metadata,
             }
             api_client.report_detection(payload, snapshot_path)
             logger.info(

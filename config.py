@@ -38,3 +38,12 @@ FACE_REFRESH_SEC  = int(os.getenv("FACE_REFRESH_SEC", "300"))   # reload DB face
 
 # ─── OCR language ───────────────────────────────────────────────────────────
 OCR_LANGS         = os.getenv("OCR_LANGS", "es,en").split(",")  # EasyOCR languages
+
+# ─── Plate format patterns (Argentina) ─────────────────────────────────────
+# Old format (pre-2016): ABC 123  (3 letters + 3 digits)
+# New Mercosur (2016+):  AB 123 CD (2 letters + 3 digits + 2 letters)
+import re
+PLATE_REGEX_OLD   = re.compile(r'^[A-Z]{3}\d{3}$')         # ABC123
+PLATE_REGEX_MERCO = re.compile(r'^[A-Z]{2}\d{3}[A-Z]{2}$') # AB123CD
+PLATE_MIN_LENGTH  = 6
+PLATE_MAX_LENGTH  = 7
