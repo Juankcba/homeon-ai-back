@@ -128,6 +128,13 @@ def main() -> None:
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
 
+    # Start Tuya local control API (for alarm arm/disarm via LAN)
+    try:
+        from tuya_api import start_tuya_api
+        start_tuya_api()
+    except Exception as e:
+        logger.warning(f"Tuya local API not started: {e}")
+
     logger.info(f"Detection cycle every {FRAME_INTERVAL}s – waiting for first frames…")
     # Give cameras 5 s to connect before first detection
     time.sleep(5)
