@@ -82,7 +82,9 @@ class FaceEngine:
         self.reload_if_needed()
 
         # Resize for speed (process at 1/4 resolution, then scale bbox back)
-        small = frame[::2, ::2, ::-1]  # downsample + RGB
+        # np.ascontiguousarray is required because dlib's compute_face_descriptor
+        # expects C-contiguous memory; sliced views (::2, ::-1) are non-contiguous.
+        small = np.ascontiguousarray(frame[::2, ::2, ::-1])  # downsample + BGR→RGB
 
         locations = face_recognition.face_locations(small, model="hog")
         if not locations:
