@@ -18,7 +18,7 @@ AI_API_KEY        = os.getenv("AI_API_KEY", "changeme-ai-secret")
 RTSP_OVERRIDE     = os.getenv("RTSP_OVERRIDE", "")   # optional manual list
 
 # ─── Detection pipeline ─────────────────────────────────────────────────────
-FRAME_INTERVAL    = float(os.getenv("FRAME_INTERVAL", "5"))     # seconds between captures
+FRAME_INTERVAL    = float(os.getenv("FRAME_INTERVAL", "30"))    # seconds between captures
 YOLO_MODEL        = os.getenv("YOLO_MODEL", "yolov8n.pt")       # nano for speed
 YOLO_CONF         = float(os.getenv("YOLO_CONF", "0.45"))       # confidence threshold
 FACE_TOLERANCE    = float(os.getenv("FACE_TOLERANCE", "0.55"))  # lower = stricter
@@ -26,7 +26,7 @@ PLATE_MIN_CONF    = float(os.getenv("PLATE_MIN_CONF", "0.60"))  # OCR min confid
 
 # ─── Snapshots ──────────────────────────────────────────────────────────────
 SNAPSHOT_DIR      = os.getenv("SNAPSHOT_DIR", "/snapshots")
-MAX_SNAPSHOT_DAYS = int(os.getenv("MAX_SNAPSHOT_DAYS", "30"))   # auto cleanup
+MAX_SNAPSHOT_DAYS = int(os.getenv("MAX_SNAPSHOT_DAYS", "3"))    # auto cleanup
 
 # ─── YOLO classes of interest ───────────────────────────────────────────────
 # COCO class IDs: 0=person, 2=car, 3=motorcycle, 5=bus, 7=truck
