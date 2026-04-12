@@ -102,10 +102,31 @@ class TuyaAlarmController:
 
     # Known DP mappings for alarm gateways
     KNOWN_MODE_DPS = [1, 101]        # master_mode
-    KNOWN_ALARM_DPS = [4, 29, 104]   # alarm/siren active
+    KNOWN_ALARM_DPS = [4, 29, 104, 103]   # alarm/siren active
     KNOWN_VOLUME_DPS = [13, 113]     # alarm volume
 
-    MODE_MAP = {
+    # Mode translation: different models use different value formats
+    # Some use strings "arm"/"disarm", others use numeric strings "0"/"1"/"2"
+    # We normalize everything to our standard: arm, disarm, home, sos
+
+    # Numeric string → standard mode name
+    NUMERIC_TO_MODE = {
+        "0": "disarm",
+        "1": "home",
+        "2": "arm",
+        "3": "sos",
+    }
+
+    # Standard mode name → numeric string (for devices that use numbers)
+    MODE_TO_NUMERIC = {
+        "disarm": "0",
+        "home": "1",
+        "arm": "2",
+        "sos": "3",
+    }
+
+    # Standard mode name → string value (for devices that use words)
+    MODE_TO_STRING = {
         "arm": "arm",
         "disarm": "disarm",
         "home": "home",
@@ -116,6 +137,7 @@ class TuyaAlarmController:
         self.device = TuyaLocalDevice(device_id, local_key, ip, version)
         self._mode_dp: Optional[int] = None
         self._alarm_dp: Optional[int] = None
+        self._uses_numeric_modes: bool = True  # default: assume numeric
         self._dp_map: dict = {}
 
     def scan_dps(self) -> dict:
@@ -123,10 +145,13 @@ class TuyaAlarmController:
         dps = self.device.get_dps()
         self._dp_map = dps
 
-        # Try to identify mode DP (string values like "arm", "disarm")
+        # Try to identify mode DP (string values)
         for dp in self.KNOWN_MODE_DPS:
-            if str(dp) in dps and isinstance(dps[str(dp)], str):
+            val = dps.get(str(dp))
+            if isinstance(val, str):
                 self._mode_dp = dp
+                # Detect if it uses numeric ("0","1","2") or word ("arm","disarm") values
+                self._uses_numeric_modes = val in self.NUMERIC_TO_MODE
                 break
 
         # Try to identify alarm/siren DP (boolean)
@@ -139,7 +164,22 @@ class TuyaAlarmController:
             "dps": dps,
             "detected_mode_dp": self._mode_dp,
             "detected_alarm_dp": self._alarm_dp,
+            "uses_numeric_modes": self._uses_numeric_modes,
         }
+
+    def _raw_mode_to_standard(self, raw: str) -> str:
+        """Convert device raw mode value to standard name."""
+        if raw in self.NUMERIC_TO_MODE:
+            return self.NUMERIC_TO_MODE[raw]
+        if raw in ("arm", "disarm", "home", "sos"):
+            return raw
+        return "unknown"
+
+    def _standard_mode_to_raw(self, mode: str) -> str:
+        """Convert standard mode name to device raw value."""
+        if self._uses_numeric_modes:
+            return self.MODE_TO_NUMERIC.get(mode, "0")
+        return self.MODE_TO_STRING.get(mode, mode)
 
     def get_status(self) -> dict:
         """Get current alarm status with human-readable fields."""
@@ -151,13 +191,16 @@ class TuyaAlarmController:
 
         # Extract mode
         if self._mode_dp and str(self._mode_dp) in dps:
-            mode = dps[str(self._mode_dp)]
+            raw = dps[str(self._mode_dp)]
+            mode = self._raw_mode_to_standard(str(raw))
+            self._uses_numeric_modes = str(raw) in self.NUMERIC_TO_MODE
         else:
             for dp in self.KNOWN_MODE_DPS:
                 val = dps.get(str(dp))
-                if isinstance(val, str) and val in ("arm", "disarm", "home", "sos"):
-                    mode = val
+                if isinstance(val, str):
+                    mode = self._raw_mode_to_standard(val)
                     self._mode_dp = dp
+                    self._uses_numeric_modes = val in self.NUMERIC_TO_MODE
                     break
 
         # Extract alarm state
@@ -180,24 +223,29 @@ class TuyaAlarmController:
 
     def set_mode(self, mode: str) -> dict:
         """Set alarm mode: arm, disarm, home, sos."""
-        if mode not in self.MODE_MAP:
+        if mode not in self.MODE_TO_NUMERIC:
             raise ValueError(f"Invalid mode: {mode}")
+
+        raw_value = self._standard_mode_to_raw(mode)
 
         # If we know the mode DP, use it
         if self._mode_dp:
-            return self.device.set_dp(self._mode_dp, self.MODE_MAP[mode])
+            result = self.device.set_dp(self._mode_dp, raw_value)
+            logger.info(f"Set alarm mode DP {self._mode_dp} = {raw_value} ({mode})")
+            return result
 
         # Try each known mode DP
         for dp in self.KNOWN_MODE_DPS:
             try:
-                result = self.device.set_dp(dp, self.MODE_MAP[mode])
+                result = self.device.set_dp(dp, raw_value)
                 if result and "Error" not in result:
                     self._mode_dp = dp
+                    logger.info(f"Discovered mode DP {dp}, set to {raw_value} ({mode})")
                     return result
             except Exception:
                 continue
 
-        raise RuntimeError(f"Could not find mode DP for alarm")
+        raise RuntimeError("Could not find mode DP for alarm")
 
     def set_siren(self, active: bool) -> dict:
         """Activate or deactivate the siren."""
