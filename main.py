@@ -100,11 +100,18 @@ def shutdown(sig, frame) -> None:
 def main() -> None:
     global detector
 
+    # Ensure all files/dirs created by this process are world-writable.
+    # The /snapshots volume is shared with the NestJS backend container.
+    os.umask(0o000)
+
     logger.info("=" * 50)
     logger.info("  HomeOn AI Engine  –  starting up")
     logger.info("=" * 50)
 
     detector = Detector()
+
+    # Clean old snapshots immediately at startup
+    detector.cleanup_old_snapshots()
 
     # Initial camera load
     init_cameras()
@@ -112,8 +119,8 @@ def main() -> None:
     # Retry camera load every 60 s if none loaded
     schedule.every(60).seconds.do(lambda: init_cameras() if not cameras else None)
 
-    # Daily snapshot cleanup
-    schedule.every().day.at("03:00").do(cleanup_job)
+    # Snapshot cleanup every 6 hours (prevents disk from filling up)
+    schedule.every(6).hours.do(cleanup_job)
 
     # Reload cameras once per hour (picks up new cameras added via UI)
     schedule.every(1).hours.do(init_cameras)

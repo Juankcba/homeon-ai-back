@@ -278,14 +278,19 @@ class VehicleEngine:
                 continue
 
             for (_bbox, text, prob) in ocr_results:
+                logger.info(f"  OCR raw: '{text}' conf={prob:.2f}")
                 if prob < PLATE_MIN_CONF * 0.8:  # slightly lower threshold for candidates
+                    logger.info(f"  → rejected (low conf {prob:.2f} < {PLATE_MIN_CONF * 0.8:.2f})")
                     continue
                 normalized = _normalize_plate(text)
                 if len(normalized) < PLATE_MIN_LENGTH or len(normalized) > PLATE_MAX_LENGTH:
+                    logger.info(f"  → rejected (length {len(normalized)} not in {PLATE_MIN_LENGTH}-{PLATE_MAX_LENGTH})")
                     continue
                 candidates.append((normalized, prob))
+                logger.info(f"  → candidate: {normalized} (conf={prob:.2f})")
 
         if not candidates:
+            logger.info(f"  No plate candidates found")
             return empty
 
         # ── Score and rank candidates ────────────────────────────────────
@@ -317,10 +322,12 @@ class VehicleEngine:
                 }
 
         if best and best_score >= PLATE_MIN_CONF:
-            logger.debug(
-                f"Plate read: {best['formatted']} (format={best['format']}, "
+            logger.info(
+                f"🚗 PLATE: {best['formatted']} (format={best['format']}, "
                 f"conf={best['ocr_confidence']}%, auth={best['authorized']})"
             )
             return best
 
+        if best:
+            logger.info(f"  Plate candidate {best['raw']} rejected (score {best_score:.2f} < {PLATE_MIN_CONF})")
         return empty
