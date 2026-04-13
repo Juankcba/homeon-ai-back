@@ -31,6 +31,25 @@ logger.add(sys.stdout, format="<green>{time:HH:mm:ss}</green> | <level>{level:<8
 cameras: list[RTSPCamera] = []
 detector: Detector | None = None
 
+# Runtime flag – polled from backend every CONFIG_POLL_INTERVAL seconds.
+# When False, detection cycles are skipped (but cameras keep running so we
+# can resume instantly).
+_detection_enabled: bool = True
+_last_config_poll: float = 0.0
+CONFIG_POLL_INTERVAL = 10.0  # seconds
+
+
+def refresh_engine_config() -> None:
+    """Poll backend for runtime config (detectionEnabled)."""
+    global _detection_enabled, _last_config_poll
+    cfg = api_client.get_engine_config()
+    new_enabled = bool(cfg.get("detectionEnabled", True))
+    if new_enabled != _detection_enabled:
+        state = "ENABLED" if new_enabled else "DISABLED"
+        logger.info(f"AI detection {state} via backend config")
+    _detection_enabled = new_enabled
+    _last_config_poll = time.time()
+
 
 def init_cameras() -> None:
     """Fetch cameras from backend and start RTSP reader threads."""
@@ -139,13 +158,21 @@ def main() -> None:
     # Give cameras 5 s to connect before first detection
     time.sleep(5)
 
+    # Prime the config flag before entering the loop
+    refresh_engine_config()
+
     last_detection = 0.0
     while True:
         schedule.run_pending()
         now = time.time()
 
+        # Refresh runtime config periodically (cheap GET)
+        if now - _last_config_poll >= CONFIG_POLL_INTERVAL:
+            refresh_engine_config()
+
         if now - last_detection >= FRAME_INTERVAL:
-            run_detection_cycle()
+            if _detection_enabled:
+                run_detection_cycle()
             last_detection = now
 
         time.sleep(0.5)

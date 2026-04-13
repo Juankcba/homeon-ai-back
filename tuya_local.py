@@ -228,20 +228,29 @@ class TuyaAlarmController:
 
         raw_value = self._standard_mode_to_raw(mode)
 
-        # If we know the mode DP, use it
+        # Auto-scan if mode DP not yet known
+        if not self._mode_dp:
+            self.scan_dps()
+
+        # If we know the mode DP, use it directly
         if self._mode_dp:
             result = self.device.set_dp(self._mode_dp, raw_value)
+            # tinytuya returns None on success (no ack), dict with "Error" on failure
+            if isinstance(result, dict) and "Error" in result:
+                raise RuntimeError(f"DP {self._mode_dp} error: {result}")
             logger.info(f"Set alarm mode DP {self._mode_dp} = {raw_value} ({mode})")
-            return result
+            return {"success": True, "dp": self._mode_dp, "value": raw_value, "mode": mode}
 
-        # Try each known mode DP
+        # Fallback: try each known mode DP
         for dp in self.KNOWN_MODE_DPS:
             try:
                 result = self.device.set_dp(dp, raw_value)
-                if result and "Error" not in result:
-                    self._mode_dp = dp
-                    logger.info(f"Discovered mode DP {dp}, set to {raw_value} ({mode})")
-                    return result
+                # None = success, dict with "Error" = failure
+                if isinstance(result, dict) and "Error" in result:
+                    continue
+                self._mode_dp = dp
+                logger.info(f"Discovered mode DP {dp}, set to {raw_value} ({mode})")
+                return {"success": True, "dp": dp, "value": raw_value, "mode": mode}
             except Exception:
                 continue
 
@@ -249,15 +258,24 @@ class TuyaAlarmController:
 
     def set_siren(self, active: bool) -> dict:
         """Activate or deactivate the siren."""
+        if not self._alarm_dp:
+            self.scan_dps()
+
         if self._alarm_dp:
-            return self.device.set_dp(self._alarm_dp, active)
+            result = self.device.set_dp(self._alarm_dp, active)
+            if isinstance(result, dict) and "Error" in result:
+                raise RuntimeError(f"Siren DP {self._alarm_dp} error: {result}")
+            logger.info(f"Set siren DP {self._alarm_dp} = {active}")
+            return {"success": True, "dp": self._alarm_dp, "active": active}
 
         for dp in self.KNOWN_ALARM_DPS:
             try:
                 result = self.device.set_dp(dp, active)
-                if result and "Error" not in result:
-                    self._alarm_dp = dp
-                    return result
+                if isinstance(result, dict) and "Error" in result:
+                    continue
+                self._alarm_dp = dp
+                logger.info(f"Discovered siren DP {dp}, set to {active}")
+                return {"success": True, "dp": dp, "active": active}
             except Exception:
                 continue
 

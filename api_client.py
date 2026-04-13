@@ -16,6 +16,22 @@ def _client() -> httpx.Client:
     return httpx.Client(base_url=BACKEND_URL, headers=_HEADERS, timeout=_TIMEOUT)
 
 
+# ─── Engine runtime config ──────────────────────────────────────────────────
+
+def get_engine_config() -> dict:
+    """Return runtime config for the AI engine (e.g. detectionEnabled)."""
+    try:
+        with _client() as c:
+            r = c.get("/ai/engine/config")
+            r.raise_for_status()
+            return r.json() or {}
+    except Exception as e:
+        logger.debug(f"Could not fetch engine config: {e}")
+        # Default to enabled if backend unreachable – avoids killing detection
+        # accidentally when network blips.
+        return {"detectionEnabled": True}
+
+
 # ─── Cameras ────────────────────────────────────────────────────────────────
 
 def get_cameras() -> list[dict]:
